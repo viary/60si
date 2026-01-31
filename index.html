@@ -195,7 +195,6 @@
         const POSTER_CONFIG = {
             width: 750,
             padding: 50,
-            contentWidth: 650, // 750 - 2*50
             colors: {
                 primary: '#7c2d12',
                 secondary: '#d97706',
@@ -211,47 +210,6 @@
             }
         };
 
-        // 智能布局系统
-        class SmartLayout {
-            constructor(ctx) {
-                this.ctx = ctx;
-                this.sections = [];
-                this.currentY = 0;
-            }
-            
-            addSection(name, estimatedHeight) {
-                const section = {
-                    name,
-                    startY: this.currentY,
-                    estimatedHeight,
-                    actualHeight: 0,
-                    content: []
-                };
-                this.sections.push(section);
-                return section;
-            }
-            
-            endSection() {
-                if (this.sections.length === 0) return;
-                const section = this.sections[this.sections.length - 1];
-                section.actualHeight = this.currentY - section.startY;
-                return section;
-            }
-            
-            addSpace(height) {
-                this.currentY += height;
-                return this.currentY;
-            }
-            
-            getTotalHeight() {
-                return this.currentY + POSTER_CONFIG.padding * 2;
-            }
-            
-            hasSpace(neededHeight, maxHeight = 1200) {
-                return this.currentY + neededHeight + POSTER_CONFIG.padding * 2 < maxHeight;
-            }
-        }
-
         // 文本渲染器
         class TextRenderer {
             constructor(ctx) {
@@ -260,14 +218,15 @@
             
             setStyle(size, weight = 'normal', family = '"Noto Sans SC"') {
                 this.ctx.font = `${weight} ${size}px ${family}`;
+                return this;
             }
             
-            drawCentered(text, y, size = 42, weight = 'bold', color = POSTER_CONFIG.colors.primary) {
+            drawCentered(text, x, y, size = 42, weight = 'bold', color = POSTER_CONFIG.colors.primary) {
                 this.setStyle(size, weight, '"Noto Serif SC"');
                 this.ctx.fillStyle = color;
                 this.ctx.textAlign = 'center';
                 this.ctx.textBaseline = 'top';
-                this.ctx.fillText(text, POSTER_CONFIG.width / 2, y);
+                this.ctx.fillText(text, x, y);
                 return y + size * 1.5;
             }
             
@@ -288,53 +247,9 @@
                 this.ctx.fillText(text, x, y);
                 return y + size * 1.5;
             }
-            
-            drawQuote(text, x, y, maxWidth) {
-                // 绘制引用背景
-                this.ctx.fillStyle = POSTER_CONFIG.colors.bgLight;
-                this.ctx.roundRect(x - 20, y - 15, maxWidth + 40, 100, 15);
-                this.ctx.fill();
-                
-                // 绘制引用符号
-                this.setStyle(48, 'bold');
-                this.ctx.fillStyle = POSTER_CONFIG.colors.accent;
-                this.ctx.textAlign = 'left';
-                this.ctx.fillText('❝', x - 10, y + 10);
-                this.ctx.fillText('❞', x + maxWidth - 20, y + 60);
-                
-                // 绘制引用文本
-                this.setStyle(20, 'bold', '"Noto Serif SC"');
-                this.ctx.fillStyle = '#78350f';
-                this.ctx.textAlign = 'center';
-                
-                // 智能换行
-                const words = text.split('');
-                let line = '';
-                let lineY = y + 35;
-                const lineHeight = 28;
-                
-                for (let i = 0; i < words.length; i++) {
-                    const testLine = line + words[i];
-                    const metrics = this.ctx.measureText(testLine);
-                    
-                    if (metrics.width > maxWidth - 60 && line !== '') {
-                        this.ctx.fillText(line, POSTER_CONFIG.width / 2, lineY);
-                        line = words[i];
-                        lineY += lineHeight;
-                    } else {
-                        line = testLine;
-                    }
-                }
-                
-                if (line) {
-                    this.ctx.fillText(line, POSTER_CONFIG.width / 2, lineY);
-                }
-                
-                return lineY + lineHeight;
-            }
         }
 
-        // 进度条绘制器
+        // 进度条绘制器 - 增加间距
         class ProgressBarRenderer {
             constructor(ctx, textRenderer) {
                 this.ctx = ctx;
@@ -345,23 +260,32 @@
                 const height = 28;
                 const radius = height / 2;
                 
-                // 背景
+                // 绘制进度条背景
                 this.ctx.fillStyle = '#f3f4f6';
                 this.roundRect(x, y, width, height, radius);
                 this.ctx.fill();
                 
-                // 进度条
+                // 绘制进度条填充
                 if (progress > 0) {
                     this.ctx.fillStyle = color;
-                    this.roundRect(x, y, width * Math.min(progress, 1), height, radius);
+                    const fillWidth = width * Math.min(progress, 1);
+                    this.roundRect(x, y, fillWidth, height, radius);
                     this.ctx.fill();
                 }
                 
-                // 标签和数值
-                this.textRenderer.drawLeft(label, x, y - 25, 16, 'bold', POSTER_CONFIG.colors.textDark);
-                this.textRenderer.drawRight(value, x + width, y - 25, 16, 'bold', color);
+                // 绘制标签
+                this.textRenderer.setStyle(16, 'bold');
+                this.ctx.fillStyle = POSTER_CONFIG.colors.textDark;
+                this.ctx.textAlign = 'left';
+                this.ctx.fillText(label, x, y - 8);
                 
-                return y + height + 25;
+                // 绘制百分比
+                this.ctx.fillStyle = color;
+                this.ctx.textAlign = 'right';
+                this.ctx.fillText(value, x + width, y - 8);
+                
+                // 增加间距：从之前的25增加到40，让进度条之间有更多空间
+                return y + height + 40;
             }
             
             roundRect(x, y, width, height, radius) {
@@ -379,67 +303,59 @@
             }
         }
 
-        // 二维码管理器
+        // 二维码绘制器
         class QRCodeManager {
             constructor(ctx, textRenderer) {
                 this.ctx = ctx;
                 this.textRenderer = textRenderer;
-                this.qrImage = null;
             }
             
-            async loadQRCode() {
+            async draw(x, y, size = 80) {
                 return new Promise((resolve) => {
-                    if (this.qrImage) {
-                        resolve(this.qrImage);
-                        return;
-                    }
-                    
                     const img = new Image();
                     img.onload = () => {
-                        this.qrImage = img;
-                        resolve(img);
+                        // 绘制白色背景
+                        this.ctx.fillStyle = 'white';
+                        this.roundRect(x - 5, y - 5, size + 10, size + 10, 10);
+                        this.ctx.fill();
+                        
+                        // 绘制金色边框
+                        this.ctx.strokeStyle = POSTER_CONFIG.colors.accent;
+                        this.ctx.lineWidth = 2;
+                        this.roundRect(x - 5, y - 5, size + 10, size + 10, 10);
+                        this.ctx.stroke();
+                        
+                        // 绘制二维码
+                        this.ctx.drawImage(img, x, y, size, size);
+                        
+                        // 绘制提示文字（放在二维码上方，留出足够间距）
+                        this.textRenderer.setStyle(14, 'normal');
+                        this.ctx.fillStyle = POSTER_CONFIG.colors.textLight;
+                        this.ctx.textAlign = 'center';
+                        this.ctx.fillText('扫码查看更多', x + size/2, y - 20);
+                        
+                        resolve();
                     };
                     img.onerror = () => {
-                        console.warn('二维码加载失败');
-                        resolve(null);
+                        // 绘制占位符
+                        this.ctx.fillStyle = '#f3f4f6';
+                        this.roundRect(x, y, size, size, 8);
+                        this.ctx.fill();
+                        
+                        this.ctx.strokeStyle = POSTER_CONFIG.colors.accent;
+                        this.ctx.lineWidth = 1;
+                        this.roundRect(x, y, size, size, 8);
+                        this.ctx.stroke();
+                        
+                        this.textRenderer.setStyle(14, 'normal');
+                        this.ctx.fillStyle = '#666';
+                        this.ctx.textAlign = 'center';
+                        this.ctx.fillText('请配置二维码', x + size/2, y + size/2 - 5);
+                        
+                        resolve();
                     };
                     img.src = QR_CODE_BASE64;
                 });
-            }
-            
-            async draw(x, y, size = 90) {
-                const img = await this.loadQRCode();
-                
-                if (img) {
-                    // 绘制二维码背景（白色圆角矩形）
-                    this.ctx.fillStyle = 'white';
-                    this.roundRect(x - 8, y - 8, size + 16, size + 16, 12);
-                    this.ctx.fill();
-                    
-                    // 绘制金色边框
-                    this.ctx.strokeStyle = POSTER_CONFIG.colors.accent;
-                    this.ctx.lineWidth = 2;
-                    this.ctx.strokeRect(x - 8, y - 8, size + 16, size + 16);
-                    
-                    // 绘制二维码
-                    this.ctx.drawImage(img, x, y, size, size);
-                    
-                    // 绘制提示文字（放在二维码上方，留出足够间距）
-                    this.textRenderer.drawCentered('扫码查看更多', x + size/2, y - 25, 14, 'normal', POSTER_CONFIG.colors.textLight);
-                } else {
-                    // 绘制占位符
-                    this.ctx.fillStyle = '#f3f4f6';
-                    this.roundRect(x, y, size, size, 8);
-                    this.ctx.fill();
-                    
-                    this.ctx.strokeStyle = POSTER_CONFIG.colors.accent;
-                    this.ctx.lineWidth = 1;
-                    this.ctx.strokeRect(x, y, size, size);
-                    
-                    this.textRenderer.drawCentered('扫码查看更多', x + size/2, y + size/2 - 10, 14, 'normal', '#666');
-                }
-                
-                return size;
             }
             
             roundRect(x, y, width, height, radius) {
@@ -501,23 +417,18 @@
                 this.textRenderer = new TextRenderer(this.ctx);
                 this.progressBarRenderer = new ProgressBarRenderer(this.ctx, this.textRenderer);
                 this.qrManager = new QRCodeManager(this.ctx, this.textRenderer);
-                this.layout = null;
-                this.data = null;
             }
             
             async generate(date) {
                 try {
                     this.data = await getMoYuData(date);
                     
-                    // 初始化布局
-                    this.layout = new SmartLayout(this.ctx);
-                    
                     // 计算所需高度
                     const neededHeight = this.calculateHeight();
                     
-                    // 设置画布尺寸（动态高度）
+                    // 设置画布尺寸
                     this.canvas.width = POSTER_CONFIG.width;
-                    this.canvas.height = Math.max(neededHeight, 1000);
+                    this.canvas.height = Math.max(neededHeight, 1100); // 确保足够高度
                     
                     // 绘制海报
                     await this.drawPoster();
@@ -542,46 +453,43 @@
                     height += 30;
                 }
                 
-                // 进度条区
-                height += 50 + (3 * 55);
+                // 进度条区（增加间距）
+                height += 50 + (3 * 55); // 标题 + 3个进度条（增加间距）
                 
-                // 假期信息（自适应）
-                height += 60; // 标题
-                height += 30 * 4; // 4行信息
+                // 假期信息
+                height += 60 + (30 * 4); // 标题 + 4行信息
                 
                 // 摸鱼语录
-                height += 120;
+                height += 140;
                 
-                // 底部信息区
-                height += 120;
+                // 底部信息区（确保有足够空间）
+                height += 140; // 增加底部区域高度
                 
                 return height;
             }
             
             async drawPoster() {
                 const padding = POSTER_CONFIG.padding;
-                const contentWidth = POSTER_CONFIG.contentWidth;
+                const width = POSTER_CONFIG.width;
+                const contentWidth = width - padding * 2;
                 let y = padding;
                 
                 // 清空画布
                 this.clearCanvas();
                 
-                // 1. 绘制标题区
-                this.layout.addSection('header', 160);
-                y = this.textRenderer.drawCentered('每日摸鱼海报', y, 42, 'bold', POSTER_CONFIG.colors.primary);
-                y = this.textRenderer.drawCentered(`${this.data.date.gregorian} ${this.data.date.weekday}`, y - 20, 26, 'normal', POSTER_CONFIG.colors.secondary);
+                // 1. 标题区
+                y = this.textRenderer.drawCentered('每日摸鱼海报', width / 2, y, 42, 'bold', POSTER_CONFIG.colors.primary);
+                y = this.textRenderer.drawCentered(`${this.data.date.gregorian} ${this.data.date.weekday}`, width / 2, y - 15, 26, 'normal', POSTER_CONFIG.colors.secondary);
                 y = this.textRenderer.drawCentered(
                     `${this.data.date.lunar.monthCN}${this.data.date.lunar.dayCN} · ${this.data.date.lunar.yearGanZhi}年 · 生肖${this.data.date.lunar.zodiac}`,
-                    y, 20, 'normal', '#92400e'
+                    width / 2, y, 20, 'normal', '#92400e'
                 );
                 
                 // 分隔线
                 this.drawDivider(y + 20);
                 y += 50;
-                this.layout.endSection();
                 
-                // 2. 绘制今日状态
-                this.layout.addSection('status', 100);
+                // 2. 今日状态
                 y = this.textRenderer.drawLeft('📋 今日状态', padding, y, 24, 'bold', POSTER_CONFIG.colors.textDark);
                 y += 35;
                 
@@ -594,10 +502,8 @@
                 }
                 
                 y += 30;
-                this.layout.endSection();
                 
-                // 3. 绘制进度条
-                this.layout.addSection('progress', 200);
+                // 3. 进度条（增加间距）
                 y = this.textRenderer.drawLeft('📊 时间进度', padding, y, 24, 'bold', POSTER_CONFIG.colors.textDark);
                 y += 40;
                 
@@ -628,11 +534,7 @@
                     `${Math.round(yearProgress * 100)}% (${this.data.progress.year.passed}/${this.data.progress.year.total}天)`
                 );
                 
-                y += 30;
-                this.layout.endSection();
-                
-                // 4. 绘制假期信息（自适应高度）
-                this.layout.addSection('holiday', 150);
+                // 4. 假期信息
                 y = this.textRenderer.drawLeft('⏳ 假期信息', padding, y, 24, 'bold', POSTER_CONFIG.colors.textDark);
                 y += 40;
                 
@@ -648,16 +550,48 @@
                 });
                 
                 y += 40;
-                this.layout.endSection();
                 
-                // 5. 绘制摸鱼语录（放在假期信息下面）
-                this.layout.addSection('quote', 140);
-                y = this.textRenderer.drawQuote(this.data.moyuQuote, padding, y, contentWidth);
-                y += 60;
-                this.layout.endSection();
+                // 5. 摸鱼语录（放在假期信息下面）
+                this.ctx.fillStyle = POSTER_CONFIG.colors.bgLight;
+                this.roundRect(padding - 15, y - 10, contentWidth + 30, 90, 15);
+                this.ctx.fill();
                 
-                // 6. 绘制底部区域
-                this.drawFooter(y);
+                this.textRenderer.setStyle(20, 'bold', '"Noto Serif SC"');
+                this.ctx.fillStyle = '#78350f';
+                this.ctx.textAlign = 'center';
+                
+                // 处理摸鱼语录换行
+                const quote = this.data.moyuQuote;
+                const maxLineWidth = contentWidth - 60;
+                
+                // 简单换行逻辑
+                const words = quote.split('');
+                let line = '';
+                let lineY = y + 35;
+                const lineHeight = 28;
+                
+                for (let i = 0; i < words.length; i++) {
+                    const testLine = line + words[i];
+                    const metrics = this.ctx.measureText(testLine);
+                    
+                    if (metrics.width > maxLineWidth && line !== '') {
+                        this.ctx.fillText(line, width / 2, lineY);
+                        line = words[i];
+                        lineY += lineHeight;
+                    } else {
+                        line = testLine;
+                    }
+                }
+                
+                if (line) {
+                    this.ctx.fillText(line, width / 2, lineY);
+                }
+                
+                y = lineY + lineHeight;
+                y += 50;
+                
+                // 6. 绘制底部信息（确保绘制）
+                await this.drawFooter(y);
             }
             
             clearCanvas() {
@@ -679,10 +613,23 @@
                 this.ctx.stroke();
             }
             
+            roundRect(x, y, width, height, radius) {
+                this.ctx.beginPath();
+                this.ctx.moveTo(x + radius, y);
+                this.ctx.lineTo(x + width - radius, y);
+                this.ctx.arcTo(x + width, y, x + width, y + radius, radius);
+                this.ctx.lineTo(x + width, y + height - radius);
+                this.ctx.arcTo(x + width, y + height, x + width - radius, y + height, radius);
+                this.ctx.lineTo(x + radius, y + height);
+                this.ctx.arcTo(x, y + height, x, y + height - radius, radius);
+                this.ctx.lineTo(x, y + radius);
+                this.ctx.arcTo(x, y, x + radius, y, radius);
+                this.ctx.closePath();
+            }
+            
             async drawFooter(startY) {
                 const padding = POSTER_CONFIG.padding;
                 const width = POSTER_CONFIG.width;
-                const contentWidth = POSTER_CONFIG.contentWidth;
                 let y = startY;
                 
                 // 绘制分隔线
@@ -695,11 +642,10 @@
                 
                 y += 40;
                 
-                // 创建两栏布局：左侧文本，右侧二维码
-                const qrSize = 90;
+                // 两栏布局：左侧文本，右侧二维码
+                const qrSize = 80;
                 const qrX = width - padding - qrSize;
                 const qrY = y;
-                const textMaxWidth = qrX - padding - 30; // 留出间距
                 
                 // 绘制左侧文本
                 let textY = y;
@@ -708,12 +654,11 @@
                 textY = this.textRenderer.drawLeft('生成时间：' + new Date().toLocaleString(), padding, textY + 10, 14, 'normal', POSTER_CONFIG.colors.textLight);
                 textY = this.textRenderer.drawLeft('本海报仅供娱乐，摸鱼虽好，工作也要认真哦～', padding, textY + 20, 13, 'normal', POSTER_CONFIG.colors.textLight);
                 
-                // 绘制右侧二维码（确保有足够空间）
-                const actualQrY = Math.max(qrY, y);
-                await this.qrManager.draw(qrX, actualQrY, qrSize);
+                // 绘制右侧二维码
+                await this.qrManager.draw(qrX, qrY, qrSize);
                 
-                // 绘制版权信息
-                const footerY = Math.max(textY, actualQrY + qrSize + 20);
+                // 绘制版权信息（在底部）
+                const footerY = Math.max(textY, qrY + qrSize) + 30;
                 this.textRenderer.drawCentered('© 2024 摸鱼海报生成器 | 仅供娱乐使用', width / 2, footerY, 12, 'normal', '#9ca3af');
             }
         }
