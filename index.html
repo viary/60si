@@ -193,38 +193,39 @@
 
         // 初始化日期
         function init() {
-            const today = new Date()
-            const dateStr = today.toISOString().split('T')[0]
-            document.getElementById('dateInput').value = dateStr
-            drawMoYu()
+            const today = new Date();
+            const dateStr = today.toISOString().split('T')[0];
+            document.getElementById('dateInput').value = dateStr;
+            document.getElementById('dateInput').max = dateStr;
+            drawMoYu();
         }
 
         // 跳转到今天
         function setToday() {
-            const today = new Date()
-            document.getElementById('dateInput').value = today.toISOString().split('T')[0]
-            drawMoYu()
+            const today = new Date();
+            document.getElementById('dateInput').value = today.toISOString().split('T')[0];
+            drawMoYu();
         }
 
         // 下载海报
         function downloadPoster() {
-            const canvas = document.getElementById('drawCanvas')
-            const link = document.createElement('a')
-            link.download = `摸鱼海报-${document.getElementById('dateInput').value}.png`
-            link.href = canvas.toDataURL('image/png')
-            link.click()
+            const canvas = document.getElementById('drawCanvas');
+            const link = document.createElement('a');
+            link.download = `摸鱼海报-${document.getElementById('dateInput').value}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
         }
 
         // 获取摸鱼数据
         async function getMoYuData(date) {
             try {
-                const res = await fetch(`https://60s.viki.moe/v2/moyu?date=${date}`)
-                const data = await res.json()
-                if (data.code !== 200) throw new Error()
-                return data.data
+                const res = await fetch(`https://60s.viki.moe/v2/moyu?date=${date}`);
+                const data = await res.json();
+                if (data.code !== 200) throw new Error();
+                return data.data;
             } catch (e) {
-                // 兜底数据
-                const today = new Date()
+                console.log('使用兜底数据');
+                const today = new Date();
                 return {
                     date: { 
                         gregorian: date, 
@@ -247,65 +248,45 @@
                     },
                     nextHoliday: { name: '春节', date: '2026-02-16', until: 16 },
                     moyuQuote: '摸鱼不是偷懒，是为了更好的工作～'
-                }
+                };
             }
         }
 
-        // 绘制进度条
+        // 绘制进度条（解决文字重叠问题）
         function drawProgressBar(ctx, x, y, width, progress, color, label, value) {
-            const height = 28;
-            const radius = 14;
-            
-            // 绘制标签（在进度条上方）
+            // 1. 先绘制标签文字（在进度条上方，左侧）
             ctx.fillStyle = '#374151';
-            ctx.font = 'bold 16px "Noto Sans SC"';
+            ctx.font = 'bold 18px "Noto Sans SC"';
             ctx.textAlign = 'left';
             ctx.textBaseline = 'top';
-            ctx.fillText(label, x, y - 25);
+            ctx.fillText(label, x, y - 30); // 上移30像素
             
-            // 绘制百分比（在进度条上方右侧）
+            // 2. 绘制百分比文字（在进度条上方，右侧）
             ctx.fillStyle = color;
             ctx.textAlign = 'right';
-            ctx.fillText(value, x + width, y - 25);
+            ctx.fillText(value, x + width, y - 30); // 上移30像素
             
-            // 绘制进度条背景
+            // 3. 绘制进度条背景
             ctx.fillStyle = '#f3f4f6';
             ctx.beginPath();
-            ctx.moveTo(x + radius, y);
-            ctx.lineTo(x + width - radius, y);
-            ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-            ctx.lineTo(x + width, y + height - radius);
-            ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-            ctx.lineTo(x + radius, y + height);
-            ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-            ctx.lineTo(x, y + radius);
-            ctx.quadraticCurveTo(x, y, x + radius, y);
-            ctx.closePath();
+            ctx.roundRect(x, y, width, 28, 14);
             ctx.fill();
             
-            // 绘制进度条填充
+            // 4. 绘制进度条填充
             if (progress > 0) {
                 ctx.fillStyle = color;
-                const fillWidth = Math.max(radius * 2, width * progress);
+                const fillWidth = Math.max(28, width * progress);
                 ctx.beginPath();
-                ctx.moveTo(x + radius, y);
-                ctx.lineTo(x + fillWidth - radius, y);
-                ctx.quadraticCurveTo(x + fillWidth, y, x + fillWidth, y + radius);
-                ctx.lineTo(x + fillWidth, y + height - radius);
-                ctx.quadraticCurveTo(x + fillWidth, y + height, x + fillWidth - radius, y + height);
-                ctx.lineTo(x + radius, y + height);
-                ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-                ctx.lineTo(x, y + radius);
-                ctx.quadraticCurveTo(x, y, x + radius, y);
-                ctx.closePath();
+                ctx.roundRect(x, y, fillWidth, 28, 14);
                 ctx.fill();
             }
             
-            return y + height + 45; // 返回下一个Y坐标，增加间距
+            // 5. 返回下一个进度条的Y坐标（增加间距）
+            return y + 28 + 35; // 进度条高度28 + 间距35
         }
 
         // 绘制二维码
-        function drawQRCode(ctx, x, y, size) {
+        async function drawQRCode(ctx, x, y, size) {
             return new Promise((resolve) => {
                 const img = new Image();
                 img.onload = () => {
@@ -321,11 +302,11 @@
                     // 绘制二维码
                     ctx.drawImage(img, x, y, size, size);
                     
-                    // 绘制提示文字
+                    // 绘制提示文字（在二维码上方，留足间距）
                     ctx.fillStyle = '#6b7280';
                     ctx.font = 'bold 14px "Noto Sans SC"';
                     ctx.textAlign = 'center';
-                    ctx.fillText('扫码查看更多', x + size/2, y - 20);
+                    ctx.fillText('扫码查看更多', x + size/2, y - 25);
                     
                     resolve();
                 };
@@ -342,14 +323,14 @@
                     ctx.font = '14px "Noto Sans SC"';
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
-                    ctx.fillText('扫码查看更多', x + size/2, y + size/2);
+                    ctx.fillText('请配置二维码', x + size/2, y + size/2);
                     resolve();
                 };
                 img.src = QR_CODE_BASE64;
             });
         }
 
-        // 主绘制函数
+        // 主绘制函数（彻底修复所有问题）
         async function drawMoYu() {
             const date = document.getElementById('dateInput').value;
             const container = document.getElementById('posterContainer');
@@ -363,9 +344,9 @@
                 const canvas = document.getElementById('drawCanvas');
                 const ctx = canvas.getContext('2d');
                 
-                // 设置画布尺寸
+                // 设置画布尺寸（确保有足够高度）
                 canvas.width = 750;
-                canvas.height = 1200; // 固定高度确保所有内容都能显示
+                canvas.height = 1350; // 增加高度，确保所有内容都能显示
                 
                 // 清除画布
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -377,11 +358,11 @@
                 // 绘制边框
                 ctx.strokeStyle = '#fbbf24';
                 ctx.lineWidth = 4;
-                ctx.strokeRect(15, 15, canvas.width - 30, canvas.height - 30);
+                ctx.strokeRect(20, 20, canvas.width - 40, canvas.height - 40);
                 
                 const padding = 50;
                 const contentWidth = canvas.width - 2 * padding;
-                let y = 50; // 初始Y坐标
+                let y = 60; // 初始Y坐标，从60开始
                 
                 // 1. 标题区
                 ctx.fillStyle = '#7c2d12';
@@ -399,7 +380,7 @@
                 ctx.fillStyle = '#92400e';
                 ctx.font = '20px "Noto Sans SC"';
                 ctx.fillText(`${data.date.lunar.monthCN}${data.date.lunar.dayCN} · ${data.date.lunar.yearGanZhi}年 · 生肖${data.date.lunar.zodiac}`, canvas.width / 2, y);
-                y += 60;
+                y += 70;
                 
                 // 分隔线
                 ctx.strokeStyle = '#fbbf24';
@@ -412,58 +393,58 @@
                 
                 // 2. 今日状态
                 ctx.fillStyle = '#1e293b';
-                ctx.font = 'bold 26px "Noto Sans SC"';
+                ctx.font = 'bold 28px "Noto Sans SC"'; // 增大字体，避免重叠
                 ctx.textAlign = 'left';
                 ctx.fillText('📋 今日状态', padding, y);
-                y += 35;
+                y += 40;
                 
-                ctx.font = '20px "Noto Sans SC"';
+                ctx.font = '22px "Noto Sans SC"';
                 const statusIcon = data.today.isWeekend ? '🎉' : '💼';
                 const statusText = data.today.isWeekend ? '周末愉快 · 放肆摸鱼' : '工作日 · 谨慎摸鱼';
                 ctx.fillText(`${statusIcon} ${statusText}`, padding, y);
-                y += 35;
+                y += 40;
                 
                 if (data.today.solarTerm && data.today.solarTerm !== '无') {
                     ctx.fillText(`• 节气：${data.today.solarTerm}`, padding, y);
-                    y += 30;
+                    y += 35;
                 }
                 y += 30;
                 
                 // 3. 进度条区
                 ctx.fillStyle = '#1e293b';
-                ctx.font = 'bold 26px "Noto Sans SC"';
+                ctx.font = 'bold 28px "Noto Sans SC"'; // 增大字体，避免与进度条文字重叠
                 ctx.fillText('📊 时间进度', padding, y);
-                y += 45;
+                y += 50; // 增加间距
                 
                 // 本周进度
                 const weekProgress = data.progress.week.passed / data.progress.week.total;
                 y = drawProgressBar(ctx, padding, y, contentWidth, weekProgress,
                     '#3b82f6', '本周进度', 
-                    `${data.progress.week.passed}/${data.progress.week.total}天 (${Math.round(weekProgress * 100)}%)`
+                    `${Math.round(weekProgress * 100)}% (${data.progress.week.passed}/${data.progress.week.total}天)`
                 );
                 
                 // 本月进度
                 const monthProgress = data.progress.month.passed / data.progress.month.total;
                 y = drawProgressBar(ctx, padding, y, contentWidth, monthProgress,
                     '#10b981', '本月进度',
-                    `${data.progress.month.passed}/${data.progress.month.total}天 (${Math.round(monthProgress * 100)}%)`
+                    `${Math.round(monthProgress * 100)}% (${data.progress.month.passed}/${data.progress.month.total}天)`
                 );
                 
                 // 今年进度
                 const yearProgress = data.progress.year.passed / data.progress.year.total;
                 y = drawProgressBar(ctx, padding, y, contentWidth, yearProgress,
                     '#f97316', '今年进度',
-                    `${data.progress.year.passed}/${data.progress.year.total}天 (${Math.round(yearProgress * 100)}%)`
+                    `${Math.round(yearProgress * 100)}% (${data.progress.year.passed}/${data.progress.year.total}天)`
                 );
-                y += 30;
+                y += 40;
                 
-                // 4. 假期信息
+                // 4. 假期信息（确保在画布内）
                 ctx.fillStyle = '#1e293b';
-                ctx.font = 'bold 26px "Noto Sans SC"';
+                ctx.font = 'bold 28px "Noto Sans SC"';
                 ctx.fillText('⏳ 假期信息', padding, y);
                 y += 45;
                 
-                ctx.font = '20px "Noto Sans SC"';
+                ctx.font = '22px "Noto Sans SC"';
                 ctx.fillStyle = '#334155';
                 
                 const holidayLines = [
@@ -473,85 +454,100 @@
                     `• 距离年末：${365 - data.progress.year.passed} 天`
                 ];
                 
-                holidayLines.forEach(line => {
-                    ctx.fillText(line, padding, y);
-                    y += 35;
-                });
-                y += 30;
+                // 检查是否有足够空间绘制假期信息
+                const holidayHeight = holidayLines.length * 35 + 50;
+                if (y + holidayHeight < canvas.height - 250) { // 留出250像素给底部内容
+                    holidayLines.forEach(line => {
+                        ctx.fillText(line, padding, y);
+                        y += 35;
+                    });
+                } else {
+                    // 如果空间不足，减少行数
+                    holidayLines.slice(0, 3).forEach(line => {
+                        ctx.fillText(line, padding, y);
+                        y += 35;
+                    });
+                }
+                y += 40;
                 
-                // 5. 摸鱼语录（在假期信息下面）
-                ctx.fillStyle = 'rgba(251, 191, 36, 0.08)';
-                ctx.fillRect(padding - 15, y - 10, contentWidth + 30, 90);
-                
-                ctx.fillStyle = '#78350f';
-                ctx.font = 'bold 22px "Noto Serif SC"';
-                ctx.textAlign = 'center';
-                
-                // 处理换行
-                const quote = data.moyuQuote;
-                const maxLineWidth = contentWidth - 60;
-                const words = quote.split('');
-                let line = '';
-                let lineY = y + 35;
-                
-                for (let i = 0; i < words.length; i++) {
-                    const testLine = line + words[i];
-                    const metrics = ctx.measureText(testLine);
+                // 5. 摸鱼语录（确保有空间）
+                if (y < canvas.height - 200) {
+                    ctx.fillStyle = 'rgba(251, 191, 36, 0.08)';
+                    ctx.fillRect(padding - 15, y - 10, contentWidth + 30, 100);
                     
-                    if (metrics.width > maxLineWidth && line !== '') {
-                        ctx.fillText(line, canvas.width / 2, lineY);
-                        line = words[i];
-                        lineY += 30;
-                    } else {
-                        line = testLine;
+                    ctx.fillStyle = '#78350f';
+                    ctx.font = 'bold 24px "Noto Serif SC"';
+                    ctx.textAlign = 'center';
+                    
+                    // 处理换行
+                    const quote = data.moyuQuote;
+                    const maxLineWidth = contentWidth - 80;
+                    const words = quote.split('');
+                    let line = '';
+                    let lineY = y + 35;
+                    
+                    for (let i = 0; i < words.length; i++) {
+                        const testLine = line + words[i];
+                        const metrics = ctx.measureText(testLine);
+                        
+                        if (metrics.width > maxLineWidth && line !== '') {
+                            ctx.fillText(line, canvas.width / 2, lineY);
+                            line = words[i];
+                            lineY += 32;
+                        } else {
+                            line = testLine;
+                        }
                     }
+                    
+                    if (line) {
+                        ctx.fillText(line, canvas.width / 2, lineY);
+                    }
+                    
+                    y = lineY + 50;
                 }
                 
-                if (line) {
-                    ctx.fillText(line, canvas.width / 2, lineY);
-                }
-                
-                y = lineY + 50;
-                
-                // 6. 底部信息
+                // 6. 底部信息（确保在画布内）
+                // 绘制分隔线
                 ctx.strokeStyle = '#e5e7eb';
                 ctx.lineWidth = 1;
                 ctx.beginPath();
-                ctx.moveTo(padding, y);
-                ctx.lineTo(canvas.width - padding, y);
+                const dividerY = Math.min(y, canvas.height - 180); // 确保有足够空间
+                ctx.moveTo(padding, dividerY);
+                ctx.lineTo(canvas.width - padding, dividerY);
                 ctx.stroke();
-                y += 40;
+                y = dividerY + 40;
                 
                 // 左侧文本
                 ctx.fillStyle = '#6b7280';
-                ctx.font = '16px "Noto Sans SC"';
+                ctx.font = '18px "Noto Sans SC"';
                 ctx.textAlign = 'left';
                 
-                ctx.fillText('每日摸鱼海报 · 专为摸鱼人士设计', padding, y);
-                y += 25;
-                ctx.fillText('数据来源：摸鱼 API | 每日更新', padding, y);
-                y += 25;
-                ctx.fillText('生成时间：' + new Date().toLocaleString(), padding, y);
-                y += 35;
+                // 确保文本不会超出
+                const textStartY = y;
+                ctx.fillText('每日摸鱼海报 · 专为摸鱼人士设计', padding, textStartY);
+                ctx.fillText('数据来源：摸鱼 API | 每日更新', padding, textStartY + 28);
+                ctx.fillText('生成时间：' + new Date().toLocaleString(), padding, textStartY + 56);
+                ctx.font = '16px "Noto Sans SC"';
+                ctx.fillText('本海报仅供娱乐，摸鱼虽好，工作也要认真哦～', padding, textStartY + 90);
                 
-                ctx.font = '14px "Noto Sans SC"';
-                ctx.fillText('本海报仅供娱乐，摸鱼虽好，工作也要认真哦～', padding, y);
-                
-                // 右侧二维码
-                const qrSize = 85;
+                // 右侧二维码（确保在画布内）
+                const qrSize = 90;
                 const qrX = canvas.width - padding - qrSize;
-                const qrY = y - 80;
+                const qrY = Math.max(textStartY, canvas.height - qrSize - 80); // 确保在画布底部
                 await drawQRCode(ctx, qrX, qrY, qrSize);
                 
-                // 版权信息
+                // 版权信息（确保在画布底部）
                 ctx.fillStyle = '#9ca3af';
-                ctx.font = '12px "Noto Sans SC"';
+                ctx.font = '14px "Noto Sans SC"';
                 ctx.textAlign = 'center';
                 ctx.fillText('© 2024 摸鱼海报生成器 | 仅供娱乐使用', canvas.width / 2, canvas.height - 40);
                 
                 // 生成图片显示
-                container.innerHTML = `<img src="${canvas.toDataURL('image/png')}" alt="摸鱼海报" class="w-full h-auto rounded-lg shadow-xl border border-stone-200" />`;
+                const posterImage = canvas.toDataURL('image/png');
+                container.innerHTML = `<img src="${posterImage}" alt="摸鱼海报" class="w-full h-auto rounded-lg shadow-xl border border-stone-200" />`;
                 downloadBtn.classList.remove('hidden');
+                
+                console.log('海报生成完成，总高度:', canvas.height, '最后Y坐标:', y);
                 
             } catch (error) {
                 console.error('绘制失败:', error);
