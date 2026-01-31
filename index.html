@@ -3,8 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
-    <title>每日摸鱼海报 - 全数据+进度条版</title>
-    <meta name="description" content="每日摸鱼海报 官方接口全数据 进度条 倒计时 节假日" />
+    <title>每日摸鱼海报 - 无重叠溢出版</title>
+    <meta name="description" content="每日摸鱼海报 官方接口全数据 进度条可视化 无重叠无溢出" />
     <meta name="theme-color" content="#fef3c7" />
     <link rel="shortcut icon" href="/favicon.ico" />
     <script src="https://cdn.tailwindcss.com"></script>
@@ -99,7 +99,7 @@
             每日<span class="text-amber-700">摸鱼</span>专属海报
           </h1>
           <p class="text-base md:text-lg text-stone-600 tracking-widest font-light mb-4">
-            官方接口全数据 · 进度条可视化 · 高清可保存
+            官方接口全数据 · 进度条可视化 · 无重叠无溢出
           </p>
           <div class="flex items-center justify-center gap-4 text-sm text-stone-500">
             <span id="currentDate" class="tracking-wide"></span>
@@ -167,11 +167,11 @@
           const paramDate = new Date(dateParam)
           const todayDate = new Date(todayStr)
           if (paramDate <= todayDate && !isNaN(paramDate.getTime())) {
-            initialDate = dateParam
+            initialDate = paramDate
           }
         }
         
-        dateInput.value = initialDate
+        dateInput.value = formatDate(initialDate)
         updateHeaderDate(new Date(initialDate))
         updateButtonStates()
         drawCustomMoYuImage()
@@ -232,14 +232,15 @@
         drawCustomMoYuImage()
       }
 
-      // Canvas文字自动换行工具函数
+      // Canvas文字自动换行工具函数（返回实际占用高度，用于动态计算画布）
       function drawTextWrap(ctx, text, x, y, maxWidth, lineHeight) {
-        if (!ctx || !text) return y
+        if (!ctx || !text) return { finalY: y, totalHeight: 0 }
         
         const _maxWidth = maxWidth || 650
-        const _lineHeight = lineHeight || 45
+        const _lineHeight = lineHeight || 35 // 减小行高，避免重叠
         let curText = ''
         let curY = y
+        let lineCount = 0 // 统计行数
         
         const words = text.split('')
         for (let i = 0; i < words.length; i++) {
@@ -250,64 +251,80 @@
             ctx.fillText(curText, x, curY)
             curText = words[i]
             curY += _lineHeight
+            lineCount++
           } else {
             curText = testText
           }
         }
         
+        // 绘制最后一行
         ctx.fillText(curText, x, curY)
-        return curY
+        lineCount++
+        const totalHeight = lineCount * _lineHeight
+        
+        return { finalY: curY + _lineHeight/2, totalHeight: totalHeight }
       }
 
-      // 【新增】绘制彩色进度条（带百分比+已过/总天数）
+      // 【新增】计算文本块所需高度（用于预计算画布，无重叠）
+      function calculateTextBlockHeight(ctx, textList, maxWidth, lineHeight) {
+        let totalHeight = 0
+        ctx.font = `20px PingFang SC, Microsoft YaHei` // 对应内容字体
+        for (let text of textList) {
+          const { totalHeight: lineHeight } = drawTextWrap(ctx, text, 0, 0, maxWidth, lineHeight)
+          totalHeight += lineHeight + 10 // 行间距
+        }
+        return totalHeight
+      }
+
+      // 【修复】绘制彩色进度条（减小间距，返回精准高度，避免溢出）
       function drawProgressBar(ctx, x, y, width, height, progress, total, color, label) {
-        const percent = Math.round((progress / total) * 100);
-        const fillWidth = (progress / total) * width;
+        const percent = Math.round((progress / total) * 100)
+        const fillWidth = (progress / total) * width
         
         // 1. 绘制进度条边框（圆角）
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.roundRect(x, y, width, height, 8);
-        ctx.stroke();
+        ctx.strokeStyle = color
+        ctx.lineWidth = 2
+        ctx.beginPath()
+        ctx.roundRect(x, y, width, height, 6) // 减小圆角，更精致
+        ctx.stroke()
         
         // 2. 绘制进度条填充（渐变）
-        const gradient = ctx.createLinearGradient(x, y, x + fillWidth, y);
-        gradient.addColorStop(0, color);
-        gradient.addColorStop(1, lightenColor(color, 30)); // 浅色渐变
-        ctx.fillStyle = gradient;
-        ctx.beginPath();
-        ctx.roundRect(x, y, fillWidth, height, 6);
-        ctx.fill();
+        const gradient = ctx.createLinearGradient(x, y, x + fillWidth, y)
+        gradient.addColorStop(0, color)
+        gradient.addColorStop(1, lightenColor(color, 30))
+        ctx.fillStyle = gradient
+        ctx.beginPath()
+        ctx.roundRect(x, y, fillWidth, height, 4)
+        ctx.fill()
         
-        // 3. 绘制进度标签（左侧）
-        ctx.fillStyle = '#374151';
-        ctx.font = 'bold 20px PingFang SC, Microsoft YaHei';
-        ctx.textAlign = 'left';
-        ctx.fillText(label, x, y - 10);
+        // 3. 绘制进度标签（左侧，减小字号）
+        ctx.fillStyle = '#374151'
+        ctx.font = 'bold 18px PingFang SC, Microsoft YaHei'
+        ctx.textAlign = 'left'
+        ctx.fillText(label, x, y - 8)
         
-        // 4. 绘制百分比+已过/总天数（右侧）
-        ctx.fillStyle = color;
-        ctx.font = 'bold 20px PingFang SC, Microsoft YaHei';
-        ctx.textAlign = 'right';
-        ctx.fillText(`${percent}% (${progress}/${total})`, x + width, y - 10);
+        // 4. 绘制百分比+已过/总天数（右侧，减小字号）
+        ctx.fillStyle = color
+        ctx.font = 'bold 18px PingFang SC, Microsoft YaHei'
+        ctx.textAlign = 'right'
+        ctx.fillText(`${percent}% (${progress}/${total})`, x + width, y - 8)
         
-        return y + height + 20; // 返回下一个元素的Y坐标
+        return y + height + 15 // 减小下方间距，返回精准高度
       }
 
       // 【辅助函数】颜色变浅（用于进度条渐变）
       function lightenColor(color, percent) {
-        const num = parseInt(color.replace("#", ""), 16);
-        const amt = Math.round(2.55 * percent);
-        const R = (num >> 16) + amt;
-        const G = (num >> 8 & 0x00FF) + amt;
-        const B = (num & 0x0000FF) + amt;
+        const num = parseInt(color.replace("#", ""), 16)
+        const amt = Math.round(2.55 * percent)
+        const R = (num >> 16) + amt
+        const G = (num >> 8 & 0x00FF) + amt
+        const B = (num & 0x0000FF) + amt
         return "#" + (
           0x1000000 +
           (R < 255 ? R < 1 ? 0 : R : 255) * 0x10000 +
           (G < 255 ? G < 1 ? 0 : G : 255) * 0x100 +
           (B < 255 ? B < 1 ? 0 : B : 255)
-        ).toString(16).slice(1);
+        ).toString(16).slice(1)
       }
 
       // ====================== 二维码配置（仅需替换这里的Base64）======================
@@ -324,34 +341,34 @@
       function loadQrCodeImage() {
         return new Promise((resolve, reject) => {
           if (!QRCODE_BASE64 || QRCODE_BASE64 === "YOUR_QRCODE_BASE64") {
-            reject(new Error("请先替换二维码的Base64编码（以data:image/png;base64,开头）"));
-            return;
+            reject(new Error("请先替换二维码的Base64编码（以data:image/png;base64,开头）"))
+            return
           }
           
-          const img = new Image();
-          img.crossOrigin = "anonymous";
-          img.onload = () => resolve(img);
-          img.onerror = () => reject(new Error("二维码加载失败，检查Base64是否完整"));
-          img.src = QRCODE_BASE64;
-        });
+          const img = new Image()
+          img.crossOrigin = "anonymous"
+          img.onload = () => resolve(img)
+          img.onerror = () => reject(new Error("二维码加载失败，检查Base64是否完整"))
+          img.src = QRCODE_BASE64
+        })
       }
 
       // 核心：调用 60s 官方摸鱼接口（获取所有数据）
       async function fetchOfficialMoYuData(dateStr) {
         try {
-          const apiUrl = `https://60s.viki.moe/v2/moyu${dateStr ? `?date=${dateStr}` : ''}`;
+          const apiUrl = `https://60s.viki.moe/v2/moyu${dateStr ? `?date=${dateStr}` : ''}`
           const response = await fetch(apiUrl, {
             method: 'GET',
             headers: { 'Accept': 'application/json' }
-          });
+          })
           
-          if (!response.ok) throw new Error(`接口状态码：${response.status}`);
-          const data = await response.json();
+          if (!response.ok) throw new Error(`接口状态码：${response.status}`)
+          const data = await response.json()
           
           if (data.code === 200 && data.data) {
-            const { date, today, progress, currentHoliday, nextHoliday, nextWeekend, countdown, moyuQuote } = data.data;
-            const { gregorian, weekday, dayOfWeek, lunar } = date;
-            const { yearCN, monthCN, dayCN, yearGanZhi, zodiac } = lunar;
+            const { date, today, progress, currentHoliday, nextHoliday, nextWeekend, countdown, moyuQuote } = data.data
+            const { gregorian, weekday, dayOfWeek, lunar } = date
+            const { yearCN, monthCN, dayCN, yearGanZhi, zodiac } = lunar
             
             // 整合接口所有数据（无遗漏）
             return {
@@ -361,7 +378,7 @@
                 weekday,
                 dayOfWeek,
                 lunar: `${yearCN}${monthCN}${dayCN}`,
-                ganZhi: `${yearGanZhi}年${monthCN}${dayGanZhi}${dayCN}${dayGanZhi}`,
+                ganZhi: `${yearGanZhi}年${monthCN}${dayCN}`, // 简化干支，避免过长
                 zodiac
               },
               // 今日状态
@@ -369,7 +386,7 @@
                 isWeekend: today.isWeekend,
                 isHoliday: today.isHoliday,
                 isWorkday: today.isWorkday,
-                holidayName: today.holidayName,
+                holidayName: today.holidayName || '无',
                 solarTerm: today.solarTerm || '无',
                 lunarFestivals: lunar.lunarFestivals.length ? lunar.lunarFestivals.join('、') : '无'
               },
@@ -379,7 +396,7 @@
                 month: { passed: progress.month.passed, total: progress.month.total, percent: progress.month.percentage },
                 year: { passed: progress.year.passed, total: progress.year.total, percent: progress.year.percentage }
               },
-              // 假期相关
+              // 假期相关（简化文本，避免过长溢出）
               holidayData: {
                 current: currentHoliday ? `${currentHoliday.name}（剩余${currentHoliday.daysRemaining}天）` : '无当前假期',
                 next: nextHoliday ? `${nextHoliday.name}（${nextHoliday.date}，还有${nextHoliday.until}天）` : '无后续假期',
@@ -394,19 +411,19 @@
               },
               // 摸鱼语录
               moyuQuote: moyuQuote || '摸鱼一时爽，一直摸鱼一直爽～'
-            };
+            }
           }
         } catch (error) {
-          console.log('官方接口请求异常，切换本地兜底：', error);
+          console.log('官方接口请求异常，切换本地兜底：', error)
         }
         
-        // 本地兜底数据（确保所有字段齐全）
-        const date = new Date(dateStr || new Date());
-        const weekPassed = date.getDay() === 0 ? 7 : date.getDay();
-        const monthDays = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-        const monthPassed = date.getDate();
-        const yearPassed = Math.floor((date - new Date(date.getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
-        const yearTotal = date.getFullYear() % 4 === 0 ? 366 : 365;
+        // 本地兜底数据（确保所有字段齐全，文本简化）
+        const date = new Date(dateStr || new Date())
+        const weekPassed = date.getDay() === 0 ? 7 : date.getDay()
+        const monthDays = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
+        const monthPassed = date.getDate()
+        const yearPassed = Math.floor((date - new Date(date.getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24))
+        const yearTotal = date.getFullYear() % 4 === 0 ? 366 : 365
         
         return {
           dateInfo: {
@@ -442,10 +459,10 @@
             toYearEnd: yearTotal - yearPassed
           },
           moyuQuote: '摸鱼不是偷懒，是为了更好的工作～'
-        };
+        }
       }
 
-      // 核心：绘制自定义摸鱼海报（全数据+进度条+彩色优化）
+      // 核心：绘制自定义摸鱼海报（修复重叠+溢出，精准高度计算）
       async function drawCustomMoYuImage() {
         const date = document.getElementById('dateInput').value
         if (!date) {
@@ -465,14 +482,14 @@
               </svg>
               <p>正在绘制自定义摸鱼海报...</p>
           </div>
-        `;
+        `
 
         try {
           // 1. 并行加载：二维码 + 官方接口全数据
           const [qrImg, moYuData] = await Promise.all([
             loadQrCodeImage(),
             fetchOfficialMoYuData(date)
-          ]);
+          ])
 
           // 2. Canvas基础配置
           const canvas = document.getElementById('drawCanvas')
@@ -483,28 +500,28 @@
           const paddingX = 50
           const contentMaxWidth = canvasWidth - paddingX * 2
           const progressBarWidth = contentMaxWidth - 40 // 进度条宽度
-          let totalContentHeight = 0 // 画布总高度
+          let totalContentHeight = 0 // 动态计算画布总高度
+          let currentY = 0 // 实时跟踪绘制Y坐标，避免重叠
 
-          // 3. 样式配置（彩色优化，丰富但协调）
+          // 3. 样式配置（优化字号和间距，避免重叠）
           const style = {
-            titleFont: 'bold 38px PingFang SC, Microsoft YaHei',
+            titleFont: 'bold 34px PingFang SC, Microsoft YaHei', // 减小标题字号
             titleColor: '#854d0e',
-            subtitleFont: '22px PingFang SC, Microsoft YaHei',
+            subtitleFont: '20px PingFang SC, Microsoft YaHei', // 减小副标题字号
             subtitleColor: '#d97706',
-            contentFont: '20px PingFang SC, Microsoft YaHei',
+            contentFont: '18px PingFang SC, Microsoft YaHei', // 减小内容字号
             contentColor: '#1f2937',
-            quoteFont: 'bold 24px PingFang SC, Microsoft YaHei',
+            quoteFont: 'bold 22px PingFang SC, Microsoft YaHei', // 减小语录字号
             quoteColor: '#b45309',
-            labelFont: '18px PingFang SC, Microsoft YaHei',
+            labelFont: '16px PingFang SC, Microsoft YaHei', // 减小标签字号
             labelColor: '#6b7280',
             customFont: '16px PingFang SC, Microsoft YaHei',
             customColor: '#6b7280',
-            lineHeight: 40,
-            bigLineHeight: 50,
+            lineHeight: 35, // 减小基础行高
+            smallGap: 10,   // 小间距
+            mediumGap: 20,  // 中等间距
+            bigGap: 30,     // 大间距（替代之前过大的bigLineHeight）
             customLineHeight: 24,
-            titleTop: 80,
-            separatorTop: 110,
-            contentTop: 160,
             // 进度条颜色（丰富且协调）
             progressColors: {
               week: '#3b82f6',    // 蓝色（本周）
@@ -513,123 +530,140 @@
             }
           }
 
-          // 4. 预计算画布总高度（含进度条+所有数据，无底部空白）
-          totalContentHeight = style.contentTop + 400 // 基础高度（含进度条+数据区）
-          totalContentHeight = Math.max(900, totalContentHeight) // 兜底最小高度（确保进度条完整显示）
-          canvas.height = totalContentHeight
-
-          // 5. 开始绘制海报（全数据+进度条+彩色）
-          // 5.1 白色背景
-          ctx.fillStyle = '#ffffff'
-          ctx.fillRect(0, 0, canvasWidth, totalContentHeight)
-          
-          // 5.2 绘制标题（带农历+生肖）
-          ctx.fillStyle = style.titleColor
-          ctx.font = style.titleFont
-          ctx.textAlign = 'center'
-          const titleText = `每日摸鱼海报 · ${moYuData.dateInfo.gregorian} ${moYuData.dateInfo.weekday}`
-          ctx.fillText(titleText, canvasWidth / 2, style.titleTop)
-          // 副标题：农历+干支+生肖
-          ctx.font = style.subtitleFont
-          ctx.fillStyle = style.subtitleColor
-          const subTitleText = `${moYuData.dateInfo.lunar} · ${moYuData.dateInfo.ganZhi} · 生肖${moYuData.dateInfo.zodiac}`
-          ctx.fillText(subTitleText, canvasWidth / 2, style.titleTop + 40)
-          
-          // 5.3 标题分隔线（彩色渐变）
-          const gradientLine = ctx.createLinearGradient(paddingX, style.separatorTop, canvasWidth - paddingX, style.separatorTop)
-          gradientLine.addColorStop(0, style.progressColors.week)
-          gradientLine.addColorStop(0.5, style.progressColors.month)
-          gradientLine.addColorStop(1, style.progressColors.year)
-          ctx.strokeStyle = gradientLine
-          ctx.lineWidth = 3
-          ctx.beginPath()
-          ctx.moveTo(paddingX, style.separatorTop)
-          ctx.lineTo(canvasWidth - paddingX, style.separatorTop)
-          ctx.stroke()
-          
-          // 5.4 绘制摸鱼语录（高亮+背景）
-          let currentY = style.contentTop
-          ctx.fillStyle = 'rgba(251, 191, 36, 0.1)' // 琥珀色浅背景
-          ctx.fillRect(paddingX - 10, currentY - 10, contentMaxWidth + 20, 60)
-          ctx.fillStyle = style.quoteColor
-          ctx.font = style.quoteFont
-          ctx.textAlign = 'center'
-          ctx.fillText(`💬 ${moYuData.moyuQuote}`, canvasWidth / 2, currentY + 30)
-          currentY += 80 // 语录区高度
-          
-          // 5.5 绘制今日状态模块
-          ctx.fillStyle = style.labelColor
-          ctx.font = style.labelFont
-          ctx.textAlign = 'left'
-          ctx.fillText('📋 今日状态', paddingX, currentY)
-          currentY += 10
-          ctx.fillStyle = style.contentColor
-          ctx.font = style.contentFont
+          // 4. 第一步：预计算所有模块的高度（确保画布能容纳所有内容，无溢出）
+          // 4.1 预计算标题区高度
+          const titleAreaHeight = 80 + style.mediumGap // 标题+副标题+间距
+          // 4.2 预计算语录区高度
+          const quoteAreaHeight = 60 + style.mediumGap // 语录+背景+间距
+          // 4.3 预计算今日状态区高度
           const todayStateText = [
             `• 状态：${moYuData.todayState.isWeekend ? '🟢 周末放肆摸鱼' : moYuData.todayState.isHoliday ? `🟡 节假日（${moYuData.todayState.holidayName}）` : '🔴 工作日谨慎摸鱼'}`,
             `• 节气：${moYuData.todayState.solarTerm}`,
             `• 农历节日：${moYuData.todayState.lunarFestivals}`
           ]
-          for (let text of todayStateText) {
-            currentY = drawTextWrap(ctx, text, paddingX + 10, currentY, contentMaxWidth - 20, style.lineHeight)
-            currentY += style.lineHeight - 10
-          }
-          currentY += style.bigLineHeight - 20
-          
-          // 5.6 绘制进度条模块（本周+本月+今年，彩色+渐变）
-          ctx.fillStyle = style.labelColor
-          ctx.font = style.labelFont
-          ctx.fillText('📊 时间进度', paddingX, currentY)
-          currentY += 30
-          // 本周进度条（蓝色）
-          currentY = drawProgressBar(
-            ctx, paddingX + 20, currentY, progressBarWidth, 25,
-            moYuData.progressData.week.passed, moYuData.progressData.week.total,
-            style.progressColors.week, '本周进度'
-          )
-          // 本月进度条（绿色）
-          currentY = drawProgressBar(
-            ctx, paddingX + 20, currentY, progressBarWidth, 25,
-            moYuData.progressData.month.passed, moYuData.progressData.month.total,
-            style.progressColors.month, '本月进度'
-          )
-          // 今年进度条（橙色）
-          currentY = drawProgressBar(
-            ctx, paddingX + 20, currentY, progressBarWidth, 25,
-            moYuData.progressData.year.passed, moYuData.progressData.year.total,
-            style.progressColors.year, '今年进度'
-          )
-          currentY += style.bigLineHeight - 20
-          
-          // 5.7 绘制假期+倒计时模块
-          ctx.fillStyle = style.labelColor
-          ctx.font = style.labelFont
-          ctx.fillText('⏳ 假期&倒计时', paddingX, currentY)
-          currentY += 10
-          ctx.fillStyle = style.contentColor
-          ctx.font = style.contentFont
+          const todayStateAreaHeight = calculateTextBlockHeight(ctx, todayStateText, contentMaxWidth - 20, style.lineHeight) + style.bigGap
+          // 4.4 预计算进度条区高度（3个进度条+标签+间距）
+          const progressAreaHeight = (25 + 15) * 3 + style.mediumGap + style.smallGap // 进度条高度+间距*3 + 标签间距
+          // 4.5 预计算假期倒计时区高度
           const holidayCountdownText = [
             `• 当前假期：${moYuData.holidayData.current}`,
             `• 下次假期：${moYuData.holidayData.next}`,
             `• 下次周末：${moYuData.holidayData.nextWeekend}`,
             `• 倒计时：距周末${moYuData.countdownData.toWeekEnd}天 · 距年末${moYuData.countdownData.toYearEnd}天`
           ]
-          for (let text of holidayCountdownText) {
-            currentY = drawTextWrap(ctx, text, paddingX + 10, currentY, contentMaxWidth - 20, style.lineHeight)
-            currentY += style.lineHeight - 10
-          }
-          currentY += style.bigLineHeight - 20
+          const holidayAreaHeight = calculateTextBlockHeight(ctx, holidayCountdownText, contentMaxWidth - 20, style.lineHeight) + style.bigGap
+          // 4.6 预计算自定义内容区高度
+          const customAreaHeight = style.customLineHeight * 2 + style.mediumGap + 100 // 自定义文字+二维码+间距
+
+          // 4.7 汇总计算画布总高度（精准适配，无溢出，无空白）
+          totalContentHeight = titleAreaHeight + quoteAreaHeight + todayStateAreaHeight + progressAreaHeight + holidayAreaHeight + customAreaHeight
+          totalContentHeight = Math.max(800, totalContentHeight) // 兜底最小高度，避免过矮
+          canvas.height = totalContentHeight // 设定最终画布高度
+
+          // 5. 第二步：开始绘制海报（按预计算高度，精准排版，无重叠）
+          // 5.1 白色背景
+          ctx.fillStyle = '#ffffff'
+          ctx.fillRect(0, 0, canvasWidth, totalContentHeight)
           
-          // 5.8 绘制底部分隔线（和顶部呼应，彩色渐变）
+          // 5.2 绘制标题（带农历+生肖，减小字号，避免溢出）
+          currentY = 70 // 初始标题Y坐标
+          ctx.fillStyle = style.titleColor
+          ctx.font = style.titleFont
+          ctx.textAlign = 'center'
+          const titleText = `每日摸鱼海报 · ${moYuData.dateInfo.gregorian} ${moYuData.dateInfo.weekday}`
+          ctx.fillText(titleText, canvasWidth / 2, currentY)
+          // 副标题：农历+干支+生肖（减小字号，简化文本）
+          currentY += 35 // 减小副标题间距
+          ctx.font = style.subtitleFont
+          ctx.fillStyle = style.subtitleColor
+          const subTitleText = `${moYuData.dateInfo.lunar} · ${moYuData.dateInfo.ganZhi} · 生肖${moYuData.dateInfo.zodiac}`
+          ctx.fillText(subTitleText, canvasWidth / 2, currentY)
+          
+          // 5.3 标题分隔线（彩色渐变，减小高度）
+          currentY += 25 // 减小分隔线间距
+          const gradientLine = ctx.createLinearGradient(paddingX, currentY, canvasWidth - paddingX, currentY)
+          gradientLine.addColorStop(0, style.progressColors.week)
+          gradientLine.addColorStop(0.5, style.progressColors.month)
+          gradientLine.addColorStop(1, style.progressColors.year)
           ctx.strokeStyle = gradientLine
           ctx.lineWidth = 2
+          ctx.beginPath()
+          ctx.moveTo(paddingX, currentY)
+          ctx.lineTo(canvasWidth - paddingX, currentY)
+          ctx.stroke()
+          
+          // 5.4 绘制摸鱼语录（高亮+背景，减小背景高度，避免重叠）
+          currentY += style.mediumGap
+          ctx.fillStyle = 'rgba(251, 191, 36, 0.1)'
+          ctx.fillRect(paddingX - 10, currentY - 10, contentMaxWidth + 20, 50) // 减小背景高度
+          ctx.fillStyle = style.quoteColor
+          ctx.font = style.quoteFont
+          ctx.textAlign = 'center'
+          ctx.fillText(`💬 ${moYuData.moyuQuote}`, canvasWidth / 2, currentY + 25) // 调整语录Y坐标
+          currentY += 50 + style.smallGap // 减小语录下方间距
+          
+          // 5.5 绘制今日状态模块（精准跟踪Y坐标，无重叠）
+          ctx.fillStyle = style.labelColor
+          ctx.font = style.labelFont
+          ctx.textAlign = 'left'
+          ctx.fillText('📋 今日状态', paddingX, currentY)
+          currentY += style.smallGap
+          ctx.fillStyle = style.contentColor
+          ctx.font = style.contentFont
+          for (let text of todayStateText) {
+            const { finalY } = drawTextWrap(ctx, text, paddingX + 10, currentY, contentMaxWidth - 20, style.lineHeight)
+            currentY = finalY + 5 // 减小行间距，避免重叠
+          }
+          currentY += style.mediumGap // 减小模块下方间距
+          
+          // 5.6 绘制进度条模块（3个进度条，精准高度，无溢出）
+          ctx.fillStyle = style.labelColor
+          ctx.font = style.labelFont
+          ctx.fillText('📊 时间进度', paddingX, currentY)
+          currentY += style.mediumGap
+          // 本周进度条（蓝色）
+          currentY = drawProgressBar(
+            ctx, paddingX + 20, currentY, progressBarWidth, 20, // 减小进度条高度
+            moYuData.progressData.week.passed, moYuData.progressData.week.total,
+            style.progressColors.week, '本周进度'
+          )
+          // 本月进度条（绿色）
+          currentY = drawProgressBar(
+            ctx, paddingX + 20, currentY, progressBarWidth, 20,
+            moYuData.progressData.month.passed, moYuData.progressData.month.total,
+            style.progressColors.month, '本月进度'
+          )
+          // 今年进度条（橙色）
+          currentY = drawProgressBar(
+            ctx, paddingX + 20, currentY, progressBarWidth, 20,
+            moYuData.progressData.year.passed, moYuData.progressData.year.total,
+            style.progressColors.year, '今年进度'
+          )
+          currentY += style.mediumGap // 减小进度条下方间距
+          
+          // 5.7 绘制假期+倒计时模块（精准跟踪Y坐标，避免溢出图片外）
+          ctx.fillStyle = style.labelColor
+          ctx.font = style.labelFont
+          ctx.fillText('⏳ 假期&倒计时', paddingX, currentY)
+          currentY += style.smallGap
+          ctx.fillStyle = style.contentColor
+          ctx.font = style.contentFont
+          for (let text of holidayCountdownText) {
+            const { finalY } = drawTextWrap(ctx, text, paddingX + 10, currentY, contentMaxWidth - 20, style.lineHeight)
+            currentY = finalY + 5 // 减小行间距，避免重叠
+          }
+          currentY += style.mediumGap // 减小模块下方间距
+          
+          // 5.8 绘制底部分隔线（和顶部呼应，减小高度）
+          ctx.strokeStyle = gradientLine
+          ctx.lineWidth = 1
           ctx.beginPath()
           ctx.moveTo(paddingX + 50, currentY)
           ctx.lineTo(canvasWidth - paddingX - 50, currentY)
           ctx.stroke()
-          currentY += style.bigLineHeight - 20
-
-          // 5.9 绘制自定义内容（左置+小字体，保留定制）
+          currentY += style.mediumGap // 减小分隔线下间距
+          
+          // 5.9 绘制自定义内容+二维码（精准Y坐标，无溢出）
           ctx.fillStyle = style.customColor
           ctx.font = style.customFont
           ctx.textAlign = 'left'
@@ -637,21 +671,23 @@
           const customText2 = '官方接口全数据 · 进度条可视化 · 高清可保存'
           ctx.fillText(customText1, paddingX, currentY)
           ctx.fillText(customText2, paddingX, currentY + style.customLineHeight)
-
-          // 5.10 绘制二维码+扫码提示（保留定制）
+          
+          // 绘制二维码+扫码提示（精准定位，不溢出）
           const qrX = canvasWidth - QRCODE_CONFIG.size - QRCODE_CONFIG.marginRight
           const qrY = currentY - (QRCODE_CONFIG.size - style.customLineHeight * 2) / 2
+          // 确保二维码不超出画布
+          const safeQrY = Math.min(qrY, totalContentHeight - QRCODE_CONFIG.size - 20)
           // 扫码小字
           ctx.font = `${QRCODE_CONFIG.scanTextSize}px PingFang SC, Microsoft YaHei`
           ctx.fillStyle = style.customColor
           const scanTextWidth = ctx.measureText(QRCODE_CONFIG.scanText).width
           const scanTextX = qrX - scanTextWidth - QRCODE_CONFIG.scanTextGap
-          const scanTextY = qrY + QRCODE_CONFIG.size / 2 + QRCODE_CONFIG.scanTextSize / 3
+          const scanTextY = safeQrY + QRCODE_CONFIG.size / 2 + QRCODE_CONFIG.scanTextSize / 3
           ctx.fillText(QRCODE_CONFIG.scanText, scanTextX, scanTextY)
           // 二维码
-          ctx.drawImage(qrImg, qrX, qrY, QRCODE_CONFIG.size, QRCODE_CONFIG.size)
+          ctx.drawImage(qrImg, qrX, safeQrY, QRCODE_CONFIG.size, QRCODE_CONFIG.size)
 
-          // 6. 转换为高清图片展示
+          // 6. 转换为高清图片展示（无溢出，无重叠）
           const customImageUrl = canvas.toDataURL('image/png', 1.0)
           if (!customImageUrl) throw new Error('Canvas转图片失败')
           container.innerHTML = `
