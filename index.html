@@ -248,7 +248,7 @@
         drawCustomNewsImage()
       }
 
-      // 格式化日期
+      // 格式化日期为 YYYY-MM-DD
       function formatDate(date) {
         return date.toISOString().split('T')[0]
       }
@@ -264,6 +264,15 @@
         document.getElementById(
           'currentDate'
         ).textContent = `${year}年${month}月${day}日 星期${weekDay}`
+      }
+
+      // 【新增核心函数】根据日期字符串获取星期（格式：星期X）
+      function getWeekByDateStr(dateStr) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return ''
+        const date = new Date(dateStr)
+        if (isNaN(date.getTime())) return ''
+        const weekDays = ['日', '一', '二', '三', '四', '五', '六']
+        return `星期${weekDays[date.getDay()]}`
       }
 
       // 更新按钮状态
@@ -318,13 +327,16 @@
         return currentY
       }
 
-      // 【核心函数】自定义绘制早报图片（修复所有视觉问题，健壮性拉满）
+      // 【核心函数】自定义绘制早报图片（最终版，解决所有问题）
       async function drawCustomNewsImage() {
         const date = document.getElementById('dateInput').value
         if (!date) {
           alert('请选择有效的日期')
           return
         }
+        // 新增：获取当前日期的星期
+        const weekStr = getWeekByDateStr(date)
+        const dateWithWeek = weekStr ? `${date} ${weekStr}` : date
 
         const container = document.getElementById('newsImageContainer')
         container.innerHTML = `
@@ -375,13 +387,13 @@
             customFont: '22px PingFang SC, Microsoft YaHei',
             customColor: '#6b7280',
             lineHeight: 45,
-            bigLineHeight: 60,
-            titleTop: 60,
-            separatorTop: 80,
-            newsTop: 120,
+            bigLineHeight: 60, // 主要间距控制
+            titleTop: 70, // 标题下移一点，适配带星期的长标题
+            separatorTop: 90, // 分隔线同步下移
+            newsTop: 130, // 新闻列表同步下移
           }
 
-          // 4. 预计算所有内容高度（核心：包含微语的换行高度，解决微语超出）
+          // 4. 预计算所有内容高度（包含星期标题、微语间距）
           ctx.font = style.newsFont || '24px 微软雅黑'
           totalContentHeight = style.newsTop
           // 预计算新闻高度
@@ -392,15 +404,15 @@
             const testLines = Math.max(1, Math.ceil(textWidth / contentMaxWidth))
             totalContentHeight += testLines * (style.lineHeight || 45)
           }
-          // 预计算微语高度（关键：按实际换行计算，解决超出）
+          // 预计算微语高度
           ctx.font = style.tipFont || 'italic 24px 微软雅黑'
           const tipWidth = ctx.measureText(tipText).width || 0
           const tipLines = Math.max(1, Math.ceil(tipWidth / contentMaxWidth))
           totalContentHeight += tipLines * (style.lineHeight || 45) + style.bigLineHeight / 2
-          // 预计算自定义信息+底部留白高度
-          totalContentHeight += (style.lineHeight || 45) * 2 + 60 // 增加一点留白，避免内容贴底
+          // 预计算【微语到自定义内容的额外间距】+ 自定义信息高度 + 底部留白
+          totalContentHeight += style.bigLineHeight + (style.lineHeight || 45) * 2 + 40
           // 最终兜底：最小高度500
-          totalContentHeight = Math.max(500, totalContentHeight)
+          totalContentHeight = Math.max(600, totalContentHeight) // 微调最小高度，适配星期标题
           // 动态设置Canvas高度
           canvas.height = totalContentHeight
 
@@ -409,25 +421,25 @@
           ctx.fillStyle = '#ffffff'
           ctx.fillRect(0, 0, canvasWidth, totalContentHeight)
 
-          // 5.2 绘制标题
+          // 5.2 绘制标题【拼接星期】
           ctx.fillStyle = style.titleColor || '#854d0e'
           ctx.font = style.titleFont || 'bold 36px 微软雅黑'
           ctx.textAlign = 'center'
-          ctx.fillText(`每日60s早报 · ${date}`, canvasWidth / 2, style.titleTop || 60)
+          ctx.fillText(`每日60s早报 · ${dateWithWeek}`, canvasWidth / 2, style.titleTop || 70)
 
           // 5.3 绘制标题下分隔线
           ctx.strokeStyle = '#fbbf24'
           ctx.lineWidth = 2
           ctx.beginPath()
-          ctx.moveTo(paddingX, style.separatorTop || 80)
-          ctx.lineTo(canvasWidth - paddingX, style.separatorTop || 80)
+          ctx.moveTo(paddingX, style.separatorTop || 90)
+          ctx.lineTo(canvasWidth - paddingX, style.separatorTop || 90)
           ctx.stroke()
 
           // 5.4 绘制新闻列表（自动换行）
           ctx.fillStyle = style.newsColor || '#1f2937'
           ctx.font = style.newsFont || '24px 微软雅黑'
           ctx.textAlign = 'left'
-          let currentY = style.newsTop || 120 // 绘制起始Y坐标
+          let currentY = style.newsTop || 130 // 绘制起始Y坐标
           for (let i = 0; i < newsData.news.length; i++) {
             const newsContent = newsData.news[i] || ''
             const newsText = `${i + 1}. ${newsContent}`
@@ -436,10 +448,10 @@
             currentY += style.lineHeight || 45
           }
 
-          // 5.5 绘制每日微语（核心：调用自动换行，彻底解决超出）
+          // 5.5 绘制每日微语（自动换行，无超出）
           ctx.fillStyle = style.tipColor || '#d97706'
           ctx.font = style.tipFont || 'italic 24px 微软雅黑'
-          ctx.textAlign = 'left' // 改为左对齐，配合自动换行，避免居中超出
+          ctx.textAlign = 'left'
           // 微语顶部增加间距
           currentY += style.bigLineHeight / 4
           // 绘制微语（自动换行）
@@ -450,9 +462,10 @@
           ctx.moveTo(paddingX + 50, currentY + 20)
           ctx.lineTo(canvasWidth - paddingX - 50, currentY + 20)
           ctx.stroke()
-          currentY += style.bigLineHeight / 2
+          // 【核心修改】增大微语到自定义内容的间距（从1/2改为整行，解决重叠）
+          currentY += style.bigLineHeight
 
-          // 5.6 绘制自定义信息
+          // 5.6 绘制自定义信息（无重叠）
           ctx.fillStyle = style.customColor || '#6b7280'
           ctx.font = style.customFont || '22px 微软雅黑'
           ctx.textAlign = 'center'
@@ -461,16 +474,16 @@
           ctx.fillText('—— 自定义60s早报 · 专属制作', canvasWidth / 2, customY1)
           ctx.fillText('每日更新 · 数据来源于公开网络', canvasWidth / 2, customY2)
 
-          // 6. Canvas转PNG图片，展示（移除多余文字，仅保留图片）
+          // 6. Canvas转PNG图片，展示（仅图片，无多余文字）
           const customImageUrl = canvas.toDataURL('image/png', 1.0)
           if (!customImageUrl) throw new Error('Canvas转换图片失败')
 
-          // 仅渲染图片，无多余文字，新增居中样式
+          // 仅渲染图片，无多余文字，双层居中
           container.innerHTML = `
             <div class="bg-stone-50/50 rounded-lg p-4 border border-stone-200 img-wrap">
                 <img
                     src="${customImageUrl}"
-                    alt="${date} 自定义60秒早报图片"
+                    alt="${dateWithWeek} 自定义60秒早报图片"
                     class="w-full h-auto rounded shadow-lg"
                     title="点击可保存图片"
                 >
