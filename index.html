@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
-    <title>每日摸鱼海报 - 紧凑版</title>
-    <meta name="description" content="接口原生下一个假期 二维码归位 自动换行 底部紧凑" />
+    <title>每日摸鱼海报 - 间距精准调整版</title>
+    <meta name="description" content="接口原生下一个假期 二维码归位 自动换行 间距精准优化" />
     <meta name="theme-color" content="#fef3c7" />
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -138,7 +138,7 @@
             <h1 class="text-4xl md:text-5xl font-bold text-stone-800 brush-text mb-4">
                 每日<span class="text-amber-700">摸鱼</span>专属海报
             </h1>
-            <p class="text-stone-600 text-lg">接口原生下一个假期 · 二维码归位 · 自动换行 · 底部紧凑</p>
+            <p class="text-stone-600 text-lg">接口原生下一个假期 · 二维码归位 · 自动换行 · 间距精准优化</p>
         </header>
 
         <section class="poster-container p-4 md:p-8 mb-8">
@@ -429,7 +429,7 @@
             });
         }
 
-        // 海报生成器（底部紧凑优化）
+        // 海报生成器（两处间距精准调整）
         class PosterGenerator {
             constructor() {
                 this.canvas = document.getElementById('drawCanvas');
@@ -444,7 +444,7 @@
                 try {
                     this.data = await getMoYuData(date);
                     
-                    // 动态计算所需高度（紧凑版）
+                    // 动态计算所需高度（保持紧凑）
                     const estimatedHeight = this.calculateHeight();
                     this.canvas.width = POSTER_CONFIG.width;
                     this.canvas.height = estimatedHeight; // 完全自适应
@@ -471,7 +471,7 @@
                 }
             }
 
-            // 精准计算画布高度（紧凑版）
+            // 精准计算画布高度（保持紧凑）
             calculateHeight() {
                 let height = 0;
                 const padding = POSTER_CONFIG.padding;
@@ -500,7 +500,7 @@
                 );
                 height += 40 + quoteWrap.totalHeight; // 40=上下间距
                 
-                // 6. 底部信息+二维码高度（紧凑版：从220减到180）
+                // 6. 底部信息+二维码高度（保持紧凑）
                 height += 180;
                 
                 // 7. 全局上下内边距
@@ -548,7 +548,7 @@
                 this.ctx.lineTo(width - padding, y);
                 this.ctx.stroke();
                 
-                y += 40;
+                y += 20;
 
                 // 2. 今日状态
                 this.textRenderer.setFont(22, 'bold');
@@ -651,7 +651,7 @@
                 // 更新Y坐标（跳过语录区域）
                 y = quoteResult.finalY + 20;
 
-                // 6. 底部信息和二维码（紧凑优化：减少多处间距）
+                // 6. 底部信息和二维码（两处间距精准调整）
                 // 绘制分隔线
                 this.ctx.strokeStyle = '#e5e7eb';
                 this.ctx.lineWidth = 1;
@@ -660,23 +660,24 @@
                 this.ctx.lineTo(width - padding, y);
                 this.ctx.stroke();
                 
-                // 优化1：分隔线后间距从30减到20
                 y += 20;
 
                 // 绘制底部文本
                 this.textRenderer.setFont(16);
                 this.textRenderer.drawText('—— 每日摸鱼海报 · 专为摸鱼人士设计 ——', padding, y, 'left', POSTER_CONFIG.colors.textLight);
-                // 优化2：底部文本间距从25减到15
-                y += 15;
+                
+                // 调整1：标语与数据来源间距从15增至28（下移数据来源一行，视觉上更宽松）
+                y += 28;
                 
                 this.textRenderer.drawText('数据来源：摸鱼 API · 仅供娱乐使用', padding, y, 'left', POSTER_CONFIG.colors.textLight);
-                // 优化3：数据来源与二维码间距从20减到12
-                y += 12;
+                
+                // 调整2：数据来源与二维码间距从12减至6（缩小后续总间距，不拥挤）
+                y += 6;
 
                 // 绘制二维码（归位状态，不偏离海报）
                 const qrSize = 80;
                 const qrX = width - padding - qrSize;
-                const qrY = Math.max(y, this.canvas.height - qrSize - 100); // 优化4：二维码上移20px
+                const qrY = Math.max(y, this.canvas.height - qrSize - 100);
                 
                 await drawQRCode(this.ctx, qrX, qrY, qrSize);
                 
@@ -684,10 +685,10 @@
                 this.textRenderer.setFont(14);
                 this.textRenderer.drawText('扫码查看更多', qrX + qrSize/2, qrY - 22, 'center', POSTER_CONFIG.colors.textLight);
                 
-                // 优化5：二维码与提示文字间距从20减到8，让提示文字上移
-                y = qrY + qrSize + 8;
+                // 调整2配套：二维码与最后提示间距从8减至4（进一步缩小总间距）
+                y = qrY + qrSize + 4;
                 
-                // 最后提示文字（已自动上移，底部无多余空间）
+                // 最后提示文字（间距缩小，不拥挤）
                 this.textRenderer.setFont(14);
                 this.textRenderer.drawText('本海报仅供娱乐，摸鱼虽好，工作也要认真哦～', padding, y, 'left', POSTER_CONFIG.colors.textLight);
             }
