@@ -561,13 +561,13 @@
                 this.textRenderer.setFont(22, 'bold', 'content');
                 this.textRenderer.drawText('📋 今日状态', padding, y, 'left', POSTER_CONFIG.colors.textDark);
                 
-                y += 35;
+                y += 40;
                 
                 this.textRenderer.setFont(18, 'normal', 'content');
                 const statusText = this.data.today.isWeekend ? '🎉 周末愉快 · 放肆摸鱼' : '💼 工作日 · 谨慎摸鱼';
                 this.textRenderer.drawText(statusText, padding, y, 'left', POSTER_CONFIG.colors.textMedium);
                 
-                y += 30;
+                y += 35;
                 
                 if (this.data.today.solarTerm && this.data.today.solarTerm !== '无') {
                     this.textRenderer.drawText(`• 节气：${this.data.today.solarTerm}`, padding, y, 'left', POSTER_CONFIG.colors.textMedium);
@@ -609,7 +609,7 @@
                     `${Math.round(yearProgress * 100)}% (${this.data.progress.year.passed}/${this.data.progress.year.total}天)`
                 );
 
-                y += 30;
+                y += 25;
 
                 // 4. 假期信息（不变）
                 this.textRenderer.setFont(22, 'bold', 'content');
