@@ -343,8 +343,9 @@
             }
 
             drawProgressBar(x, y, width, progress, color, label, value) {
-                const height = 28;
-                const radius = height / 2;
+                // 核心修改1：进度条高度从28px改为40px，实现变粗效果
+                const height = 40;
+                const radius = height / 2; // 同步调整圆角，保持半圆角美观
                 
                 // 绘制背景
                 this.ctx.fillStyle = '#f3f4f6';
@@ -361,12 +362,14 @@
                 
                 // 绘制标签
                 this.textRenderer.setFont(16, 'bold');
+                // 核心修改2：调整文字垂直居中位置，适配变粗后的进度条
                 this.textRenderer.drawText(label, x, y + height / 2 - 8, 'left', '#374151');
                 
                 // 绘制百分比
                 this.textRenderer.drawText(value, x + width, y + height / 2 - 8, 'right', '#374151');
                 
-                return y + height + 20;
+                // 核心修改3：进度条间距从20px改为25px，避免变粗后拥挤
+                return y + height + 25;
             }
 
             roundRect(x, y, width, height, radius) {
@@ -493,7 +496,8 @@
                 
                 height += 160;
                 height += 80 + (this.data.today.solarTerm && this.data.today.solarTerm !== '无' ? 30 : 0);
-                height += 60 + (3 * 48);
+                // 核心修改4：调整进度条区域高度计算，适配变粗后的进度条，避免画布挤压
+                height += 60 + (3 * 65);
                 height += 80 + 30 * 3;
                 
                 // 语录改为黑体，计算高度逻辑不变
@@ -572,7 +576,7 @@
                 
                 y += 20;
 
-                // 3. 进度条区（不变）
+                // 3. 进度条区（不变，进度条样式已在ProgressBarRenderer中修改）
                 this.textRenderer.setFont(22, 'bold', 'content');
                 this.textRenderer.drawText('📊 时间进度', padding, y, 'left', POSTER_CONFIG.colors.textDark);
                 
