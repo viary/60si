@@ -138,6 +138,19 @@
             display: none;
         }
         
+        /* 新增：超链接样式优化 */
+        footer a {
+            color: #d97706; /* 琥珀色，匹配网站主色调 */
+            text-decoration: none; /* 去掉默认下划线 */
+            font-weight: 500;
+            transition: color 0.3s ease;
+        }
+        
+        footer a:hover {
+            color: #b45309; /* 深色琥珀，hover 效果 */
+            text-decoration: underline; /* hover 时显示下划线 */
+        }
+        
         @media (max-width: 640px) {
             .poster-container {
                 border-radius: 12px;
@@ -199,7 +212,8 @@
         </section>
         
         <footer class="text-center text-stone-500 text-sm mt-12 px-4">
-            <p>公众号：资源鉴 | 专属设计 | 每日更新 | 仅供娱乐使用</p>
+            <!-- 关键修改：将“仅供娱乐使用”改为超链接 -->
+            <p>公众号：资源鉴 | 专属设计 | 每日更新 | <a href="https://resgo.cc/" target="_blank">仅供娱乐使用</a></p>
             <p class="mt-2">© 2026 摸鱼海报生成器 | 本日宜适当放松，保持工作效率</p>
         </footer>
     </div>
@@ -687,7 +701,6 @@
                 
                 y = qrY + qrSize + 2;
                 
-                this.textRenderer.setFont(14, 'normal', 'content');
                 this.textRenderer.drawText('本海报仅供娱乐，摸鱼虽好，工作也要认真哦～', padding, y, 'left', POSTER_CONFIG.colors.textLight);
             }
         }
